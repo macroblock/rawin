@@ -4,16 +4,31 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-var (
-	sin      = os.Stdin
-	state, _ = terminal.GetState(int(sin.Fd()))
-	buff     chan rune
-	actions  map[rune]func()
+const (
+	// RuneError -
+	RuneError = utf8.RuneError
+	// PreFilter -
+	PreFilter = utf8.MaxRune + 1
+	// PostFilter -
+	PostFilter = utf8.MaxRune + 2
 )
+
+var (
+	sin     *os.File
+	state   *terminal.State
+	buff    chan rune
+	actions map[rune]func(r rune) bool
+)
+
+func init() {
+	sin = os.Stdin
+	state, _ = terminal.GetState(int(sin.Fd()))
+}
 
 // Init -
 func Init(f *os.File) error {
@@ -37,27 +52,15 @@ func Init(f *os.File) error {
 // Close -
 func Close() {
 	Stop()
-	//terminal.Restore(int(sin.Fd()), state)
 }
 
 // Read -
 func Read() (rune, error) {
-	// fd := int(sin.Fd())
-	// state, err := terminal.MakeRaw(fd)
-	// if err != nil {
-	// 	return 0, fmt.Errorf("cannot set raw mode")
-	// }
-	// defer terminal.Restore(fd, state)
-
-	// var buf [1]byte
-	// _, err = sin.Read(buf[:])
-	// key := rune(buf[0])
-	// return key, err
 	if buff == nil {
-		return 0, fmt.Errorf("raw input mode thread is not running yet")
+		return RuneError, fmt.Errorf("raw input mode thread is not running yet")
 	}
 	if len(buff) == 0 {
-		return 0, fmt.Errorf("no events")
+		return RuneError, fmt.Errorf("no events")
 	}
 	return <-buff, nil
 }
@@ -67,7 +70,7 @@ func Start() error {
 	if buff != nil {
 		return fmt.Errorf("raw input mode thread is already running")
 	}
-	buff = make(chan rune)
+	buff = make(chan rune, 8) // TODO: bad constant
 
 	fd := int(sin.Fd())
 	st, err := terminal.MakeRaw(fd)
@@ -92,9 +95,9 @@ func Stop() {
 }
 
 // AddAction -
-func AddAction(r rune, fn func()) {
+func AddAction(r rune, fn func(r rune) bool) {
 	if actions == nil {
-		actions = make(map[rune]func())
+		actions = make(map[rune]func(r rune) bool)
 	}
 	actions[r] = fn
 }
@@ -106,28 +109,29 @@ func ClearActions() {
 
 func readKeys() {
 	for buff != nil {
-		var buf [1]byte
-		_, err := sin.Read(buf[:])
-		key := rune(buf[0])
+		key := RuneError
+		b := [1]byte{}
+		_, err := sin.Read(b[:])
 		if err != nil {
 			break
 		}
-		// for len(buff) > 0 {
-		// 	<-buff
-		// }
+		key = rune(b[0])
 
-		if fn, ok := actions[key]; ok {
-			fn()
+		for len(buff) > 0 {
+			<-buff
 		}
-		//buff <- key
+		fn, ok := actions[PreFilter]
+		if ok && fn(key) {
+			continue
+		}
+		fn, ok = actions[key]
+		if ok && fn(key) {
+			continue
+		}
+		fn, ok = actions[PostFilter]
+		if ok && fn(key) {
+			continue
+		}
+		buff <- key
 	}
-}
-
-// Size -
-func Size() (int64, error) {
-	info, err := sin.Stat()
-	if err != nil {
-		return 0, err
-	}
-	return info.Size(), err
 }

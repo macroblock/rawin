@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/macroblock/rawin"
 )
@@ -9,18 +10,26 @@ import (
 var quit = false
 
 func main() {
-	// key, err := rawterm.Read()
-	// fmt.Printf("key: %v, %q\nerror: %v\n", int(key), key, err)
-	rawin.AddAction('t', func() {
-		fmt.Printf("\nTEST\n")
+	rawin.AddAction(rawin.PreFilter, func(r rune) bool {
+		fmt.Printf("key: %q, %v\n", r, int(r))
+		return false
 	})
-	rawin.AddAction('q', func() {
-		fmt.Printf("\nQuit\n")
+	rawin.AddAction('t', func(r rune) bool {
+		fmt.Printf("-> Test <-\n")
+		return true
+	})
+	rawin.AddAction('q', func(r rune) bool {
+		fmt.Printf("Quit\n")
 		quit = true
+		return true
 	})
+
 	err := rawin.Start()
-	fmt.Printf("err: %v\n", err)
+	fmt.Printf("start err: %v\n", err)
 	defer rawin.Stop()
+
 	for !quit {
+		time.Sleep(250 * time.Millisecond)
+		fmt.Printf("ping\n")
 	}
 }
