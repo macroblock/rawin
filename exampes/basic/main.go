@@ -10,15 +10,15 @@ import (
 var quit = false
 
 func main() {
-	rawin.AddAction(rawin.PreFilter, func(r rune) bool {
+	rawin.SetAction(rawin.PreFilter, func(r rune) bool {
 		fmt.Printf("key: %q, %v\n", r, int(r))
 		return false
 	})
-	rawin.AddAction('t', func(r rune) bool {
+	rawin.SetAction('t', func(r rune) bool {
 		fmt.Printf("-> Test <-\n")
 		return true
 	})
-	rawin.AddAction('q', func(r rune) bool {
+	rawin.SetAction('q', func(r rune) bool {
 		fmt.Printf("Quit\n")
 		quit = true
 		return true

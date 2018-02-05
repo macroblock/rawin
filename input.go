@@ -94,10 +94,14 @@ func Stop() {
 	buff = nil
 }
 
-// AddAction -
-func AddAction(r rune, fn func(r rune) bool) {
+// SetAction -
+func SetAction(r rune, fn func(r rune) bool) {
 	if actions == nil {
 		actions = make(map[rune]func(r rune) bool)
+	}
+	if fn == nil {
+		delete(actions, r)
+		return
 	}
 	actions[r] = fn
 }
